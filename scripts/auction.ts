@@ -3,13 +3,13 @@ import { ethers } from "hardhat";
 async function main() {
   
 
-  const NFT = await ethers.getContractFactory("AuctionToken");
-  const auctionToken = await NFT.deploy();
+  const NFT_Auction = await ethers.getContractFactory("NFT_Auction");
+  const nft_Auction = await NFT_Auction.deploy();
 
-  await auctionToken.deployed();
+  await nft_Auction.deployed();
 
   console.log(
-    `NFT Contract has been deployed to ${auctionToken.address}`
+    `Auction Contract has been deployed to ${nft_Auction.address}`
   );
 }
 
