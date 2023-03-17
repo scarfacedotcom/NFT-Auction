@@ -22,7 +22,7 @@ const config: HardhatUserConfig = {
     apiKey: process.env.ETHERSCAN_APIKEY,
   },
 
-  gas: 2100000,
+  //gas: 2100000,
 };
 
 export default config;

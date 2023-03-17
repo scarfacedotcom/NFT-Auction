@@ -1,10 +1,105 @@
+// // SPDX-License-Identifier: UNLICENSED
+// pragma solidity ^0.8.17;
+// import {IERC721} from "./IERC721.sol";
+
+// contract NFT_Auction {
+//     address public seller;
+//     address public owner;
+
+//     bool public ended;
+//     bool public started;
+//     uint public endAt;
+
+//     uint public highestBid;
+//     address public highestBidder;
+
+//     mapping(address => uint) public bids;
+
+//     // NFT parameters
+//     IERC721 public nft;
+//     uint public nftid;
+
+//     //events
+//     event Start();
+//     event End(address highestBidder, uint highestBid);
+//     event Bid(address indexed sender, uint amount);
+//     event Withdraw(address indexed bidder, uint amount);
+
+//     constructor() {
+//         owner = msg.sender;
+//     }
+
+//     function start(IERC721 _nft, uint _nftid, uint startingBid) public {
+//         require(!started, "started");
+//         require(msg.sender == seller, "you are not the seller");
+
+//         highestBid = startingBid;
+
+//         nft = _nft;
+//         nftid = _nftid;
+//         started = true;
+//         endAt = block.timestamp + 7 days;
+
+//         nft.transferFrom(msg.sender, address(this), nftid);
+
+//         emit Start();
+//     }
+
+//     function bid() external payable {
+//         require(started, "Not started yet");
+//         require(!ended, "ended");
+//         require(msg.value > highestBid, "you're fucking broke");
+//         require(block.timestamp < endAt, "ended");
+
+//         if (highestBidder != address(0)) {
+//             bids[highestBidder] += highestBid;
+//         }
+
+//         highestBid = msg.value;
+//         highestBidder = msg.sender;
+
+//         emit Bid(highestBidder, highestBid);
+//     }
+
+//     function withdraw() external payable {
+//         uint bal = bids[msg.sender];
+//         bids[msg.sender] = 0;
+//         (bool sent, bytes memory data) = payable(msg.sender).call{value: bal}(
+//             ""
+//         );
+//         require(sent, "could not withdraw");
+
+//         emit Withdraw(msg.sender, bal);
+//     }
+
+//     function end() external {
+//         require(started, "auction havent started yet");
+//         require(block.timestamp >= endAt, "auction havent ended yet");
+//         require(!ended, "auction already ended");
+//         ended = true;
+
+//         if(highestBidder != address(0)){
+//             nft.transfer(highestBidder, nftid);
+//             (bool sent, bytes memory data) = seller.call{value: highestBid}(
+//             ""
+//         );
+//         require(sent, "could not withdraw");
+
+//         } else {
+//             nft.transfer(seller, nftid);
+//         }
+
+//         emit End(highestBidder, highestBid);
+//     }
+// }
+
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.17;
 import {IERC721} from "./IERC721.sol";
 
 contract NFT_Auction {
-    address public seller;
-    address public owner;
+    address public immutable seller;
+    address public immutable owner;
 
     bool public ended;
     bool public started;
@@ -16,40 +111,44 @@ contract NFT_Auction {
     mapping(address => uint) public bids;
 
     // NFT parameters
-    IERC721 public nft;
-    uint public nftid;
+    IERC721 public immutable nft;
+    uint public immutable nftid;
 
     //events
-    event Start();
-    event End(address highestBidder, uint highestBid);
-    event Bid(address indexed sender, uint amount);
-    event Withdraw(address indexed bidder, uint amount);
+    event AuctionStarted();
+    event AuctionEnded(address highestBidder, uint highestBid);
+    event BidPlaced(address indexed bidder, uint amount);
+    event Withdrawn(address indexed bidder, uint amount);
 
-    constructor() {
+    constructor(address _seller, IERC721 _nft, uint _nftid) {
+        seller = _seller;
         owner = msg.sender;
+        nft = _nft;
+        nftid = _nftid;
     }
 
-    function start(IERC721 _nft, uint _nftid, uint startingBid) public {
-        require(!started, "started");
-        require(msg.sender == seller, "you are not the seller");
+    function start(uint startingBid) public {
+        require(msg.sender == seller, "Only seller can start the auction");
+        require(!started, "Auction has already started");
 
         highestBid = startingBid;
 
-        nft = _nft;
-        nftid = _nftid;
         started = true;
         endAt = block.timestamp + 7 days;
 
-        nft.transferFrom(msg.sender, address(this), nftid);
+        nft.transferFrom(seller, address(this), nftid);
 
-        emit Start();
+        emit AuctionStarted();
     }
 
-    function bid() external payable {
-        require(started, "Not started yet");
-        require(!ended, "ended");
-        require(msg.value > highestBid, "you're fucking broke");
-        require(block.timestamp < endAt, "ended");
+    function placeBid() external payable {
+        require(started, "Auction has not started yet");
+        require(!ended, "Auction has already ended");
+        require(
+            msg.value > highestBid,
+            "Bid amount should be higher than highest bid"
+        );
+        require(block.timestamp < endAt, "Auction has ended");
 
         if (highestBidder != address(0)) {
             bids[highestBidder] += highestBid;
@@ -58,37 +157,37 @@ contract NFT_Auction {
         highestBid = msg.value;
         highestBidder = msg.sender;
 
-        emit Bid(highestBidder, highestBid);
+        emit BidPlaced(highestBidder, highestBid);
     }
 
-    function withdraw() external payable {
+    function withdrawBid() external {
         uint bal = bids[msg.sender];
-        bids[msg.sender] = 0;
-        (bool sent, bytes memory data) = payable(msg.sender).call{value: bal}(
-            ""
-        );
-        require(sent, "could not withdraw");
+        require(bal > 0, "No funds to withdraw");
 
-        emit Withdraw(msg.sender, bal);
+        bids[msg.sender] = 0;
+        (bool sent, ) = payable(msg.sender).call{value: bal}("");
+
+        require(sent, "Could not withdraw funds");
+
+        emit Withdrawn(msg.sender, bal);
     }
 
-    function end() external {
-        require(started, "auction havent started yet");
-        require(block.timestamp >= endAt, "auction havent ended yet");
-        require(!ended, "auction already ended");
+    function endAuction() external {
+        require(started, "Auction has not started yet");
+        require(block.timestamp >= endAt, "Auction has not ended yet");
+        require(!ended, "Auction has already ended");
+
         ended = true;
 
-        if(highestBidder != address(0)){
+        if (highestBidder != address(0)) {
             nft.transfer(highestBidder, nftid);
-            (bool sent, bytes memory data) = seller.call{value: highestBid}(
-            ""
-        );
-        require(sent, "could not withdraw");
 
+            (bool sent, ) = payable(seller).call{value: highestBid}("");
+            require(sent, "Could not transfer funds to seller");
         } else {
             nft.transfer(seller, nftid);
         }
 
-        emit End(highestBidder, highestBid);
+        emit AuctionEnded(highestBidder, highestBid);
     }
 }
